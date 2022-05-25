@@ -3,6 +3,7 @@
 #include <swift/AST/Decl.h>
 #include <swift/AST/GenericParamList.h>
 #include <swift/AST/ParameterList.h>
+#include <swift/AST/ASTMangler.h>
 
 #include "swift/extractor/visitors/VisitorBase.h"
 
@@ -20,7 +21,8 @@ class DeclVisitor : public AstVisitorBase<DeclVisitor> {
   using AstVisitorBase<DeclVisitor>::AstVisitorBase;
 
   void visitFuncDecl(swift::FuncDecl* decl) {
-    auto label = dispatcher_.assignNewLabel(decl);
+    auto mangledName = mangler.mangleAnyDecl(decl, /* prefix = */ false);
+    auto label = dispatcher_.assignNewLabel(decl, mangledName);
     dispatcher_.emit(ConcreteFuncDeclsTrap{label});
     emitAbstractFunctionDecl(decl, label);
   }
@@ -251,6 +253,9 @@ class DeclVisitor : public AstVisitorBase<DeclVisitor> {
     assert(decl->getInterfaceType() && "Expect ValueDecl to have InterfaceType");
     dispatcher_.emit(ValueDeclsTrap{label, dispatcher_.fetchLabel(decl->getInterfaceType())});
   }
+
+ private:
+  swift::Mangle::ASTMangler mangler;
 };
 
 }  // namespace codeql

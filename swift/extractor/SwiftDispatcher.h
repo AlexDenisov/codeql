@@ -74,10 +74,10 @@ class SwiftDispatcher {
   // Due to the lazy emission approach, we must assign a label to a corresponding AST node before
   // it actually gets emitted to handle recursive cases such as recursive calls, or recursive type
   // declarations
-  template <typename E>
-  TrapLabelOf<E> assignNewLabel(E* e) {
+  template <typename E, typename... Args>
+  TrapLabelOf<E> assignNewLabel(E* e, Args&&... args) {
     assert(waitingForNewLabel == Store::Handle{e} && "assignNewLabel called on wrong entity");
-    auto label = createLabel<TrapTagOf<E>>();
+    auto label = createLabel<TrapTagOf<E>>(std::forward<Args>(args)...);
     store.insert(e, label);
     waitingForNewLabel = std::monostate{};
     return label;
