@@ -147,6 +147,13 @@ class DeclVisitor : public AstVisitorBase<DeclVisitor> {
     emitNominalTypeDecl(decl, label);
   }
 
+  /* void visitExtensionDecl(swift::ExtensionDecl* decl) { */
+  /*   auto label = dispatcher_.assignNewLabel(decl); */
+  /*   dispatcher_.emit(ExtensionDeclsTrap{label}); */
+  /*   dispatcher_.fetchLabel(decl->getExtendedNominal()); */
+  /*   /1* emitNominalTypeDecl(decl->getExtendedNominal(), label); *1/ */
+  /* } */
+
   void visitEnumCaseDecl(swift::EnumCaseDecl* decl) {
     auto label = dispatcher_.assignNewLabel(decl);
     dispatcher_.emit(EnumCaseDeclsTrap{label});

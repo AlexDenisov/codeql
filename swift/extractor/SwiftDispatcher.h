@@ -7,6 +7,7 @@
 #include <swift/AST/SourceFile.h>
 #include <swift/Basic/SourceManager.h>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/Support/raw_ostream.h>
 
 namespace codeql {
 
@@ -139,15 +140,27 @@ class SwiftDispatcher {
   bool shouldEmitDeclBody(swift::Decl* decl) {
     switch (extractionMode) {
       case SwiftExtractionMode::Module: {
-        return currentModule == decl->getModuleContext();
+        bool shouldEmit = currentModule == decl->getModuleContext();
+        if (!shouldEmit) {
+          attachDebugInfo(decl);
+        }
+        return shouldEmit;
       } break;
       case SwiftExtractionMode::PrimaryFile: {
         swift::SourceLoc location = decl->getStartLoc();
         if (!location.isValid()) {
+          trap.debug("Skipping due to invalid location");
+          attachDebugInfo(decl);
           return false;
         }
         auto declFileName = sourceManager.getDisplayNameForLoc(location).str();
-        return currentModule == decl->getModuleContext() && declFileName == currentFileName;
+        bool shouldEmit =
+            currentModule == decl->getModuleContext() && declFileName == currentFileName;
+        if (!shouldEmit) {
+          trap.debug("Skipping due to different modules or file names");
+          attachDebugInfo(decl);
+        }
+        return shouldEmit;
       } break;
       default:
         return false;
@@ -183,6 +196,34 @@ class SwiftDispatcher {
                                              endLine, ':', endColumn);
     trap.emit(LocationsTrap{locLabel, fileLabel, startLine, startColumn, endLine, endColumn});
     trap.emit(LocatablesTrap{locatableLabel, locLabel});
+  }
+
+  void attachDebugInfo(swift::Decl* decl) {
+    std::string s;
+    llvm::raw_string_ostream ss(s);
+    decl->print(ss);
+    ss << '\n';
+    /* e->dump(ss); */
+
+    swift::DeclContext* dc = decl->getDeclContext();
+    if (dc) {
+      if (auto d = dc->getAsDecl()) {
+        ss << "getDeclContext()\n";
+        d->print(ss);
+        ss << '\n';
+      }
+      swift::DeclContext* pc = dc->getParent();
+      if (pc) {
+        if (auto d = pc->getAsDecl()) {
+          ss << "getParent()\n";
+          d->print(ss);
+          ss << '\n';
+        }
+      }
+    }
+
+    ss.flush();
+    trap.debug(s);
   }
 
   template <typename Tag, typename... Ts>
