@@ -61,10 +61,10 @@ class DeclVisitor : public AstVisitorBase<DeclVisitor> {
 
   void visitInfixOperatorDecl(swift::InfixOperatorDecl* decl) {
     auto label = dispatcher_.assignNewLabel(decl);
-    dispatcher_.emit(InfixOperatorDeclsTrap{label});
     if (auto group = decl->getPrecedenceGroup()) {
       dispatcher_.emit(InfixOperatorDeclPrecedenceGroupsTrap{label, dispatcher_.fetchLabel(group)});
     }
+    dispatcher_.emit(InfixOperatorDeclsTrap{label});
     emitOperatorDecl(decl, label);
   }
 
@@ -103,11 +103,11 @@ class DeclVisitor : public AstVisitorBase<DeclVisitor> {
 
   void visitVarDecl(swift::VarDecl* decl) {
     auto label = dispatcher_.assignNewLabel(decl, mangledName(decl));
-    auto introducer = static_cast<uint8_t>(decl->getIntroducer());
-    dispatcher_.emit(ConcreteVarDeclsTrap{label, introducer});
     if (!dispatcher_.shouldEmitDeclBody(decl)) {
       return;
     }
+    auto introducer = static_cast<uint8_t>(decl->getIntroducer());
+    dispatcher_.emit(ConcreteVarDeclsTrap{label, introducer});
     emitVarDecl(decl, label);
   }
 
@@ -140,19 +140,19 @@ class DeclVisitor : public AstVisitorBase<DeclVisitor> {
 
   void visitProtocolDecl(swift::ProtocolDecl* decl) {
     auto label = dispatcher_.assignNewLabel(decl, mangledName(decl));
-    dispatcher_.emit(ProtocolDeclsTrap{label});
     if (!dispatcher_.shouldEmitDeclBody(decl)) {
       return;
     }
+    dispatcher_.emit(ProtocolDeclsTrap{label});
     emitNominalTypeDecl(decl, label);
   }
 
-  /* void visitExtensionDecl(swift::ExtensionDecl* decl) { */
-  /*   auto label = dispatcher_.assignNewLabel(decl); */
-  /*   dispatcher_.emit(ExtensionDeclsTrap{label}); */
-  /*   dispatcher_.fetchLabel(decl->getExtendedNominal()); */
-  /*   /1* emitNominalTypeDecl(decl->getExtendedNominal(), label); *1/ */
-  /* } */
+  void visitExtensionDecl(swift::ExtensionDecl* decl) {
+    auto label = dispatcher_.assignNewLabel(decl);
+    dispatcher_.emit(ExtensionDeclsTrap{label});
+    emitGenericContext(decl, label);
+    emitIterableDeclContext(decl, label);
+  }
 
   void visitEnumCaseDecl(swift::EnumCaseDecl* decl) {
     auto label = dispatcher_.assignNewLabel(decl);
@@ -178,11 +178,26 @@ class DeclVisitor : public AstVisitorBase<DeclVisitor> {
   }
 
   void visitGenericTypeParamDecl(swift::GenericTypeParamDecl* decl) {
+    /* if (decl->getDeclContext()->getContextKind() == swift::DeclContextKind::ExtensionDecl || */
+    /*     decl->getDeclContext()->getContextKind() == swift::DeclContextKind::GenericTypeDecl) { */
+    /*   auto label = dispatcher_.assignNewLabel(decl); */
+    /*   dispatcher_.attachDebugInfo(decl); */
+    /*   dispatcher_.emit(GenericTypeParamDeclsTrap{label}); */
+    /*   emitTypeDecl(decl, label); */
+    /*   return; */
+    /* } */
     auto label = dispatcher_.assignNewLabel(decl, mangledName(decl));
-    dispatcher_.emit(GenericTypeParamDeclsTrap{label});
+    dispatcher_.Trap().debug(std::string("protocols: ") +
+                             std::to_string(decl->getConformingProtocols().size()));
+    for (auto p : decl->getConformingProtocols()) {
+      dispatcher_.dumpTrapDecl(p);
+    }
+    dispatcher_.dumpTrapType(decl->getDeclaredInterfaceType());
+    dispatcher_.attachDebugInfo(decl);
     if (!dispatcher_.shouldEmitDeclBody(decl)) {
       return;
     }
+    dispatcher_.emit(GenericTypeParamDeclsTrap{label});
     emitTypeDecl(decl, label);
   }
 
@@ -229,11 +244,11 @@ class DeclVisitor : public AstVisitorBase<DeclVisitor> {
 
   void visitSubscriptDecl(swift::SubscriptDecl* decl) {
     auto label = dispatcher_.assignNewLabel(decl, mangledName(decl));
-    auto elementTypeLabel = dispatcher_.fetchLabel(decl->getElementInterfaceType());
-    dispatcher_.emit(SubscriptDeclsTrap{label, elementTypeLabel});
     if (!dispatcher_.shouldEmitDeclBody(decl)) {
       return;
     }
+    auto elementTypeLabel = dispatcher_.fetchLabel(decl->getElementInterfaceType());
+    dispatcher_.emit(SubscriptDeclsTrap{label, elementTypeLabel});
     if (auto indices = decl->getIndices()) {
       for (auto i = 0u; i < indices->size(); ++i) {
         dispatcher_.emit(

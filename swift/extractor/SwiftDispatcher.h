@@ -90,6 +90,7 @@ class SwiftDispatcher {
   template <typename E, typename... Args>
   TrapLabelOf<E> assignNewLabel(E* e, Args&&... args) {
     assert(waitingForNewLabel == Store::Handle{e} && "assignNewLabel called on wrong entity");
+    trap.debug(e);
     auto label = createLabel<TrapTagOf<E>>(std::forward<Args>(args)...);
     store.insert(e, label);
     waitingForNewLabel = std::monostate{};
@@ -168,6 +169,62 @@ class SwiftDispatcher {
     return false;
   }
 
+  void dumpTrapDecl(swift::Decl* decl) {
+    std::string s;
+    llvm::raw_string_ostream ss(s);
+    decl->print(ss);
+    ss << '\n';
+    decl->dump(ss);
+    ss << '\n';
+    ss.flush();
+    trap.debug(s);
+  }
+
+  void dumpTrapType(swift::Type type) {
+    if (!type) {
+      trap.debug("nunll type");
+    }
+    std::string s;
+    llvm::raw_string_ostream ss(s);
+    type.print(ss);
+    ss << '\n';
+    type.dump(ss);
+    ss << '\n';
+    ss.flush();
+    trap.debug(s);
+  }
+
+  void attachDebugInfo(swift::Decl* decl) {
+    std::string s;
+    llvm::raw_string_ostream ss(s);
+    decl->print(ss);
+    ss << '\n';
+    decl->dump(ss);
+    ss << '\n';
+
+    swift::DeclContext* dc = decl->getDeclContext();
+    if (dc) {
+      if (auto d = dc->getAsDecl()) {
+        ss << "getDeclContext()\n";
+        d->print(ss);
+        ss << '\n';
+      }
+      swift::DeclContext* pc = dc->getParent();
+      if (pc) {
+        if (auto d = pc->getAsDecl()) {
+          ss << "getParent()\n";
+          d->print(ss);
+          ss << '\n';
+        }
+      }
+    }
+
+    ss.flush();
+    trap.debug(s);
+  }
+
+  TrapOutput& Trap() { return trap; }
+
  private:
   // types to be supported by assignNewLabel/fetchLabel need to be listed here
   using Store = TrapLabelStore<swift::Decl,
@@ -196,34 +253,6 @@ class SwiftDispatcher {
                                              endLine, ':', endColumn);
     trap.emit(LocationsTrap{locLabel, fileLabel, startLine, startColumn, endLine, endColumn});
     trap.emit(LocatablesTrap{locatableLabel, locLabel});
-  }
-
-  void attachDebugInfo(swift::Decl* decl) {
-    std::string s;
-    llvm::raw_string_ostream ss(s);
-    decl->print(ss);
-    ss << '\n';
-    /* e->dump(ss); */
-
-    swift::DeclContext* dc = decl->getDeclContext();
-    if (dc) {
-      if (auto d = dc->getAsDecl()) {
-        ss << "getDeclContext()\n";
-        d->print(ss);
-        ss << '\n';
-      }
-      swift::DeclContext* pc = dc->getParent();
-      if (pc) {
-        if (auto d = pc->getAsDecl()) {
-          ss << "getParent()\n";
-          d->print(ss);
-          ss << '\n';
-        }
-      }
-    }
-
-    ss.flush();
-    trap.debug(s);
   }
 
   template <typename Tag, typename... Ts>
