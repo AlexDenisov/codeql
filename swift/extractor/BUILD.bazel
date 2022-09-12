@@ -5,6 +5,8 @@ swift_cc_binary(
     srcs = glob([
         "*.h",
         "*.cpp",
+        "fishhook/fishhook.h",
+        "fishhook/fishhook.cpp"
     ]),
     visibility = ["//swift:__pkg__"],
     deps = [

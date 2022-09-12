@@ -2,6 +2,9 @@
 #include "swift/extractor/SwiftExtractorConfiguration.h"
 #include "swift/extractor/TargetTrapFile.h"
 
+#include <swift/AST/DiagnosticEngine.h>
+#include <swift/Basic/SourceManager.h>
+#include <swift/Frontend/Frontend.h>
 #include <llvm/ADT/SmallString.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Path.h>
@@ -336,6 +339,30 @@ void lockOutputSwiftModuleTraps(const SwiftExtractorConfiguration& config,
       }
     }
   }
+}
+
+std::vector<std::string> getOutputs(const std::vector<std::string>& args) {
+  std::vector<const char*> cArgs;
+  for (auto& arg : args) {
+    cArgs.push_back(arg.data());
+  }
+
+  swift::CompilerInvocation Invocation;
+
+  llvm::SmallString<128> workingDirectory;
+  llvm::sys::fs::current_path(workingDirectory);
+
+  std::string MainExecutablePath = llvm::sys::fs::getMainExecutable(cArgs.front(), 0);
+
+  swift::SourceManager SourceMgr;
+  swift::DiagnosticEngine Diagnostics{SourceMgr};
+
+  // Parse arguments.
+  llvm::SmallVector<std::unique_ptr<llvm::MemoryBuffer>, 4> configurationFileBuffers;
+  Invocation.parseArgs(cArgs, Diagnostics, &configurationFileBuffers, workingDirectory,
+                       MainExecutablePath);
+
+  return Invocation.getFrontendOptions().InputsAndOutputs.copyOutputFilenames();
 }
 
 }  // namespace codeql
